@@ -135,3 +135,6 @@ dmypy.json
 */wandb/*
 
 **/apex/*
+
+
+data_generation/raw_data
