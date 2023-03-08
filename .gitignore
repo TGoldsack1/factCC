@@ -138,3 +138,4 @@ dmypy.json
 
 
 data_generation/raw_data
+data_generation/generated_data

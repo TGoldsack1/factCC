@@ -46,7 +46,7 @@ class Transformation():
 
     def __init__(self):
         # Spacy toolkit used for all NLP-related substeps
-        self.spacy = spacy.load("en")
+        self.spacy = spacy.load("en_core_web_lg")
 
     def transform(self, example):
         # Function applies transformation on passed example
