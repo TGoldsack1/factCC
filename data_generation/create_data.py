@@ -50,6 +50,8 @@ def apply_transformation(data, operation):
 
 
 def main(args):
+    print(args.augmentations)
+
     # load data
     source_docs = load_source_docs(args.data_file, to_dict=False)
     print("Loaded %d source documents." % len(source_docs))
