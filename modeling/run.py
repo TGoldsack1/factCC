@@ -37,9 +37,9 @@ from tqdm import tqdm, trange
 # from pytorch_transformers import (WEIGHTS_NAME, BertConfig, BertForSequenceClassification, BertTokenizer)
 # from pytorch_transformers import AdamW, WarmupLinearSchedule
 
+
 from transformers import BertConfig, BertForSequenceClassification, BertTokenizer, BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AdamW, get_linear_schedule_with_warmup #WarmupLinearSchedule
-
 
 logger = logging.getLogger(__name__)
 wandb.init(project="entailment-metric")

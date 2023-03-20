@@ -24,4 +24,3 @@ python3 $CODE_PATH/run.py \
   --model_type bert \
   --model_name_or_path $MODEL_NAME \
   --output_dir $OUTPUT_PATH/$MODEL_NAME-$TASK_NAME-finetune-$RANDOM/
-
