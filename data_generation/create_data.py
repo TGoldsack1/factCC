@@ -80,76 +80,76 @@ def main(args):
     save_data(args, data_positive, "positive")
 
     # create negative examples
-    data_pronoun = []
-    if not args.augmentations or "pronoun_swap" in args.augmentations:
-        print("Creating pronoun examples")
-        pronoun_op = ops.PronounSwap()
-        data_pronoun = apply_transformation(data_positive, pronoun_op)
-        print("PronounSwap %s example pairs." % len(data_pronoun))
+    #data_pronoun = []
+    #if not args.augmentations or "pronoun_swap" in args.augmentations:
+    #    print("Creating pronoun examples")
+    #    pronoun_op = ops.PronounSwap()
+    #    data_pronoun = apply_transformation(data_positive, pronoun_op)
+    #    print("PronounSwap %s example pairs." % len(data_pronoun))
 
-        if args.save_intermediate:
-            save_data(args, data_pronoun, "pronoun")
+    #    if args.save_intermediate:
+    #        save_data(args, data_pronoun, "pronoun")
 
-    data_dateswp = []
-    if not args.augmentations or "date_swap" in args.augmentations:
-        print("Creating date swap examples")
-        dateswap_op = ops.DateSwap()
-        data_dateswp = apply_transformation(data_positive, dateswap_op)
-        print("DateSwap %s example pairs." % len(data_dateswp))
+    #data_dateswp = []
+    #if not args.augmentations or "date_swap" in args.augmentations:
+    #    print("Creating date swap examples")
+    #    dateswap_op = ops.DateSwap()
+    #    data_dateswp = apply_transformation(data_positive, dateswap_op)
+    #    print("DateSwap %s example pairs." % len(data_dateswp))
 
-        if args.save_intermediate:
-            save_data(args, data_dateswp, "dateswp")
+    #    if args.save_intermediate:
+    #        save_data(args, data_dateswp, "dateswp")
 
-    data_numswp = []
-    if not args.augmentations or "number_swap" in args.augmentations:
-        print("Creating number swap examples")
-        numswap_op = ops.NumberSwap()
-        data_numswp = apply_transformation(data_positive, numswap_op)
-        print("NumberSwap %s example pairs." % len(data_numswp))
+    #data_numswp = []
+    #if not args.augmentations or "number_swap" in args.augmentations:
+    #    print("Creating number swap examples")
+    #    numswap_op = ops.NumberSwap()
+    #    data_numswp = apply_transformation(data_positive, numswap_op)
+    #    print("NumberSwap %s example pairs." % len(data_numswp))
 
-        if args.save_intermediate:
-            save_data(args, data_numswp, "numswp")
+    #    if args.save_intermediate:
+    #        save_data(args, data_numswp, "numswp")
 
-    data_entswp = []
-    if not args.augmentations or "entity_swap" in args.augmentations:
-        print("Creating entity swap examples")
-        entswap_op = ops.EntitySwap()
-        data_entswp = apply_transformation(data_positive, entswap_op)
-        print("EntitySwap %s example pairs." % len(data_entswp))
+    #data_entswp = []
+    #if not args.augmentations or "entity_swap" in args.augmentations:
+    #    print("Creating entity swap examples")
+    #    entswap_op = ops.EntitySwap()
+    #    data_entswp = apply_transformation(data_positive, entswap_op)
+    #    print("EntitySwap %s example pairs." % len(data_entswp))
 
-        if args.save_intermediate:
-            save_data(args, data_entswp, "entswp")
+    #    if args.save_intermediate:
+    #        save_data(args, data_entswp, "entswp")
 
-    data_negation = []
-    if not args.augmentations or "negation" in args.augmentations:
-        print("Creating negation examples")
-        negation_op = ops.NegateSentences()
-        data_negation = apply_transformation(data_positive, negation_op)
-        print("Negation %s example pairs." % len(data_negation))
+    #data_negation = []
+    #if not args.augmentations or "negation" in args.augmentations:
+    #    print("Creating negation examples")
+    #    negation_op = ops.NegateSentences()
+    #    data_negation = apply_transformation(data_positive, negation_op)
+    #    print("Negation %s example pairs." % len(data_negation))
 
-        if args.save_intermediate:
-            save_data(args, data_negation, "negation")
+    #    if args.save_intermediate:
+    #        save_data(args, data_negation, "negation")
 
     # add noise to all
-    data_negative = data_pronoun + data_dateswp + data_numswp + data_entswp + data_negation
-    save_data(args, data_negative, "negative")
+    #data_negative = data_pronoun + data_dateswp + data_numswp + data_entswp + data_negation
+    #save_data(args, data_negative, "negative")
 
     # ADD NOISE
-    data_pos_low_noise = []
-    data_neg_low_noise = []
+    #data_pos_low_noise = []
+    #data_neg_low_noise = []
     
-    if not args.augmentations or "noise" in args.augmentations:
-        # add light noise
-        print("Adding light noise to data")
-        low_noise_op = ops.AddNoise()
+    #if not args.augmentations or "noise" in args.augmentations:
+    #    # add light noise
+    #    print("Adding light noise to data")
+    #    low_noise_op = ops.AddNoise()
 
-        data_pos_low_noise = apply_transformation(data_positive, low_noise_op)
-        print("PositiveNoisy %s example pairs." % len(data_pos_low_noise))
-        save_data(args, data_pos_low_noise, "positive-noise")
+    #    data_pos_low_noise = apply_transformation(data_positive, low_noise_op)
+    #    print("PositiveNoisy %s example pairs." % len(data_pos_low_noise))
+    #    save_data(args, data_pos_low_noise, "positive-noise")
 
-        data_neg_low_noise = apply_transformation(data_negative, low_noise_op)
-        print("NegativeNoisy %s example pairs." % len(data_neg_low_noise))
-        save_data(args, data_neg_low_noise, "negative-noise")
+    #    data_neg_low_noise = apply_transformation(data_negative, low_noise_op)
+    #    print("NegativeNoisy %s example pairs." % len(data_neg_low_noise))
+    #    save_data(args, data_neg_low_noise, "negative-noise")
 
 
 if __name__ == "__main__":

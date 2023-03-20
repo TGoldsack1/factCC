@@ -53,6 +53,19 @@ class Transformation():
         pass
 
 
+
+class LoadSpacy(Transformation):
+    def __init__(self):
+        super().__init__()
+
+    def transform(self, example):
+        assert example["text"] is not None, "Text must be available"
+
+        new_example = dict(example)
+        new_example["text"] = self.spacy(example["text"], disable=["tagger"])
+        new_example["claim"] = self.spacy(example["claim"], disable=["tagger"])
+        return new_example
+
 class SampleSentences(Transformation):
     # Embed document as Spacy object and sample one sentence as claim
     def __init__(self, min_sent_len=8):
@@ -352,7 +365,7 @@ class AddNoise(Transformation):
 
         self.noise_prob = noise_prob
         self.delete_prob = delete_prob
-        self.spacy = spacy.load("en")
+        self.spacy = spacy.load("en_core_web_lg")
 
     def transform(self, example):
         assert example["text"] is not None, "Text must be available"

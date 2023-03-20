@@ -33,20 +33,23 @@ from utils import (compute_metrics, convert_examples_to_features, output_modes, 
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler, TensorDataset)
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
-from pytorch_transformers import (WEIGHTS_NAME, BertConfig, BertForSequenceClassification, BertTokenizer)
 
-from pytorch_transformers import AdamW, WarmupLinearSchedule
+# from pytorch_transformers import (WEIGHTS_NAME, BertConfig, BertForSequenceClassification, BertTokenizer)
+# from pytorch_transformers import AdamW, WarmupLinearSchedule
+
+from transformers import BertConfig, BertForSequenceClassification, BertTokenizer, BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
+from transformers import AdamW, get_linear_schedule_with_warmup #WarmupLinearSchedule
+
 
 logger = logging.getLogger(__name__)
 wandb.init(project="entailment-metric")
 
-ALL_MODELS = sum((tuple(conf.pretrained_config_archive_map.keys()) for conf in (BertConfig,)), ())
+ALL_MODELS = sum((tuple(BERT_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()) for conf in (BertConfig,)), ())
 
 MODEL_CLASSES = {
     'pbert': (BertConfig, BertPointer, BertTokenizer),
     'bert': (BertConfig, BertForSequenceClassification, BertTokenizer),
 }
-
 
 def set_seed(args):
     random.seed(args.seed)
@@ -95,7 +98,9 @@ def train(args, train_dataset, model, tokenizer):
         {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+    #scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=t_total)
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=args.warmup_steps, num_training_steps = t_total)
+
     if args.fp16:
         try:
             from apex import amp
@@ -500,9 +505,9 @@ def main():
     results = {}
     if args.do_eval and args.local_rank in [-1, 0]:
         checkpoints = [args.output_dir]
-        if args.eval_all_checkpoints:
-            checkpoints = list(os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + '/**/' + WEIGHTS_NAME, recursive=True)))
-            logging.getLogger("pytorch_transformers.modeling_utils").setLevel(logging.WARN)  # Reduce logging
+        # if args.eval_all_checkpoints:
+        #     checkpoints = list(os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + '/**/' + WEIGHTS_NAME, recursive=True)))
+            #logging.getLogger("pytorch_transformers.modeling_utils").setLevel(logging.WARN)  # Reduce logging
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         for checkpoint in checkpoints:
             global_step = checkpoint.split('-')[-1] if len(checkpoints) > 1 else ""
@@ -517,3 +522,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
