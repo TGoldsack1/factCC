@@ -1,7 +1,7 @@
 import json, random
 
 
-subtask = "st1_eLife"
+subtask = "st2_PLOS"
 
 source_dir = "/fastdata/acp20tg/factcc_data"
 

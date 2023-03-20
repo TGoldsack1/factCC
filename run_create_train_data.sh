@@ -12,4 +12,3 @@ source activate factcc
 
 python3 data_generation/create_training_data.py 
 
-#python3 data_generation/create_data.py data_generation/raw_data/st1_eLife_formatted.jsonl --all_augmentations --save_intermediate
