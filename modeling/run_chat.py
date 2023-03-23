@@ -79,15 +79,16 @@ def make_model_input(args, batch):
     return inputs
 
 
-def train(args, train_dataset, model, tokenizer):
+def train(args, train_dataset, model, tokenizer, accelerator):
     """ Train the model """
 
-    accelerator = Accelerator(fp16=True, fp16_backend="amp")
     model, train_dataset = accelerator.prepare(model, train_dataset)
 
     args.train_batch_size = args.per_gpu_train_batch_size * max(1, accelerator.num_processes)
     train_sampler = RandomSampler(train_dataset) if args.local_rank == -1 else DistributedSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+    # train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size)
+
 
     if args.max_steps > 0:
         t_total = args.max_steps
@@ -103,6 +104,10 @@ def train(args, train_dataset, model, tokenizer):
         ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total)
+
+    train_dataloader, model, optimizer, scheduler = accelerator.prepare(
+        train_dataloader, model, optimizer, scheduler
+    )
 
     # Train!
     logger.info("***** Running training *****")
@@ -121,7 +126,7 @@ def train(args, train_dataset, model, tokenizer):
     set_seed(args)  # Added here for reproductibility (even between python 2 and 3)
 
     for epoch_ix in train_iterator:
-        epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])
+        epoch_iterator = tqdm(train_dataloader, desc="Iteration")#, disable=args.local_rank not in [-1, 0])
         for step, batch in enumerate(epoch_iterator):
             model.train()
             batch = tuple(t.to(args.device) for t in batch)
@@ -129,11 +134,11 @@ def train(args, train_dataset, model, tokenizer):
             outputs = model(**inputs)
             loss = outputs.loss  # model outputs are always tuple in transformers (see doc)
 
-            if accelerator.num_processes > 1:
-                loss = accelerator.pad_and_concatenate(loss)
+            # if accelerator.num_processes > 1:
+            #     loss = accelerator.pad_and_concatenate(loss)
 
-            if args.gradient_accumulation_steps > 1:
-                loss = loss / args.gradient_accumulation_steps
+            # if args.gradient_accumulation_steps > 1:
+            #     loss = loss / args.gradient_accumulation_steps
 
             accelerator.backward(loss)
 
@@ -170,7 +175,7 @@ def train(args, train_dataset, model, tokenizer):
 
         if args.evaluate_during_training:
             # Only evaluate when single GPU otherwise metrics may not average well
-            results = evaluate(args, model, tokenizer)
+            results = evaluate(args, model, tokenizer, accelerator)
             for key, value in results.items():
                 wandb.log({'eval_{}'.format(key): value})
 
@@ -192,7 +197,8 @@ def train(args, train_dataset, model, tokenizer):
 
 
 
-def evaluate(args, model, tokenizer, prefix=""):
+def evaluate(args, model, tokenizer, accelerator, prefix=""):
+    
     # Loop to handle MNLI double evaluation (matched, mis-matched)
     eval_task_names = (args.task_name,)
     eval_outputs_dirs = (args.output_dir,)
@@ -290,8 +296,8 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
             logger.info("Saving features into cached file %s", cached_features_file)
             torch.save(features, cached_features_file)
 
-    if args.local_rank == 0:
-        torch.distributed.barrier()  # Make sure only the first process in distributed training process the dataset, and the others will use the cache
+    # if args.local_rank == 0:
+    #     torch.distributed.barrier()  # Make sure only the first process in distributed training process the dataset, and the others will use the cache
 
     # Convert to Tensors and build dataset
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
@@ -391,7 +397,7 @@ def main():
 
     parser.add_argument('--fp16', action='store_true',
                         help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
-    parser.add_argument('--fp16_opt_level', type=str, default='O1',
+    parser.add_argument('--fp16_opt_level', type=str, default='O2',
                         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
                              "See details at https://nvidia.github.io/apex/amp.html")
     parser.add_argument("--local_rank", type=int, default=-1,
@@ -401,15 +407,19 @@ def main():
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
 
-    # Setup CUDA, GPU & distributed training
-    if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
-        args.n_gpu = torch.cuda.device_count()
-    else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.cuda.set_device(args.local_rank)
-        device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend='nccl')
-        args.n_gpu = 1
+
+    device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    args.n_gpu = torch.cuda.device_count()
+
+    # # Setup CUDA, GPU & distributed training
+    # if args.local_rank == -1 or args.no_cuda:
+    #     device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    #     args.n_gpu = torch.cuda.device_count()
+    # else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+    #     torch.cuda.set_device(args.local_rank)
+    #     device = torch.device("cuda", args.local_rank)
+    #     torch.distributed.init_process_group(backend='nccl')
+    #     args.n_gpu = 1
     args.device = device
 
     # Setup logging
@@ -431,9 +441,9 @@ def main():
     label_list = processor.get_labels()
     num_labels = len(label_list)
 
-    # Load pretrained model and tokenizer
-    if args.local_rank not in [-1, 0]:
-        torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
+    # # Load pretrained model and tokenizer
+    # if args.local_rank not in [-1, 0]:
+    #     torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
 
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
@@ -446,26 +456,28 @@ def main():
         logger.info("Loading model from checkpoint.")
         model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path), config=config)
 
-    if args.local_rank == 0:
-        torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
+    # if args.local_rank == 0:
+    #     torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
 
     model.to(args.device)
 
     wandb.watch(model)
     logger.info("Training/evaluation parameters %s", args)
 
+    accelerator = Accelerator(fp16=True)
+
 
     # Training
     if args.do_train:
         train_dataset = load_and_cache_examples(args, args.task_name, tokenizer, evaluate=False)
-        global_step, tr_loss = train(args, train_dataset, model, tokenizer)
+        global_step, tr_loss = train(args, train_dataset, model, tokenizer, accelerator)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
 
     # Saving best-practices: if you use defaults names for the model, you can reload it using from_pretrained()
-    if args.do_train and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_train: #and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Create output directory if needed
-        if not os.path.exists(args.output_dir) and args.local_rank in [-1, 0]:
+        if not os.path.exists(args.output_dir):# and args.local_rank in [-1, 0]:
             os.makedirs(args.output_dir)
 
         logger.info("Saving model checkpoint to %s", args.output_dir)
@@ -486,7 +498,7 @@ def main():
 
     # Evaluation
     results = {}
-    if args.do_eval and args.local_rank in [-1, 0]:
+    if args.do_eval:# and args.local_rank in [-1, 0]:
         checkpoints = [args.output_dir]
         # if args.eval_all_checkpoints:
         #     checkpoints = list(os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + '/**/' + WEIGHTS_NAME, recursive=True)))
@@ -496,7 +508,7 @@ def main():
             global_step = checkpoint.split('-')[-1] if len(checkpoints) > 1 else ""
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
-            result = evaluate(args, model, tokenizer, prefix=global_step)
+            result = evaluate(args, model, tokenizer, accelerator, prefix=global_step)
             result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
             results.update(result)
 

@@ -9,7 +9,7 @@ export OUTPUT_PATH=/fastdata/acp20tg/factcc_data/st1_eLife/ft_model # absolute p
 export TASK_NAME=factcc_generated
 export MODEL_NAME=/fastdata/acp20tg/factcc_data/bert-base-8192/
 
-python3 -m torch.distributed.launch --nproc_per_node 4  $CODE_PATH/run.py \
+python3 $CODE_PATH/run.py \
   --task_name $TASK_NAME \
   --do_train \
   --do_eval \
