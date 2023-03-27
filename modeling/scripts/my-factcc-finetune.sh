@@ -18,7 +18,7 @@ python3 $CODE_PATH/run.py \
   --do_lower_case \
   --max_seq_length 8192 \
   --per_gpu_train_batch_size 1 \
-  --gradient_accumulation_steps 8 \
+  --gradient_accumulation_steps 4 \
   --per_gpu_eval_batch_size 1 \
   --learning_rate 2e-5 \
   --num_train_epochs 3.0 \
