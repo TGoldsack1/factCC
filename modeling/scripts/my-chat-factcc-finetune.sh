@@ -2,14 +2,14 @@
 # Fine-tune FactCC model
 
 # UPDATE PATHS BEFORE RUNNING SCRIPT
-export CODE_PATH=/home/acp20tg/factCC/modeling # absolute path to modeling directory
-export DATA_PATH=/fastdata/acp20tg/factcc_data/st1_eLife/ # absolute path to data directory
-export OUTPUT_PATH=/fastdata/acp20tg/factcc_data/st1_eLife/ft_model # absolute path to model checkpoint
+export CODE_PATH=/root/factCC/modeling # absolute path to modeling directory
+export DATA_PATH=/root/autodl-tmp/data # absolute path to data directory
+export OUTPUT_PATH=/root/autodl-tmp/output # absolute path to model checkpoint
 
 export TASK_NAME=factcc_generated
-export MODEL_NAME=/fastdata/acp20tg/factcc_data/bert-base-8192/
+export MODEL_NAME=/root/autodl-tmp/data/bert-base-8192
 
-python3 $CODE_PATH/run.py \
+python3 $CODE_PATH/run_chat.py \
   --task_name $TASK_NAME \
   --do_train \
   --do_eval \
@@ -17,7 +17,7 @@ python3 $CODE_PATH/run.py \
   --evaluate_during_training \
   --do_lower_case \
   --max_seq_length 8192 \
-  --per_gpu_train_batch_size 1 \
+  --per_gpu_train_batch_size 4 \
   --gradient_accumulation_steps 1 \
   --per_gpu_eval_batch_size 1 \
   --learning_rate 2e-5 \

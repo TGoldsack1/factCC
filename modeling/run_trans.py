@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 from model import BertPointer
-from utils import (compute_metrics, convert_examples_to_features, output_modes, processors)
+from utils import (compute_metrics, convert_examples_to_features, my_convert_examples_to_features, output_modes, processors)
 
 from torch.utils.data import (TensorDataset)
 
@@ -21,7 +21,9 @@ from transformers import BertConfig, BertForSequenceClassification, BertTokenize
 # from transformers import AdamW, get_linear_schedule_with_warmup
 # from accelerate import Accelerator
 from transformers import Trainer, TrainingArguments
+from datasets import Dataset, load_from_disk, load_dataset
 
+import nvidia_smi
 
 
 logger = logging.getLogger(__name__)
@@ -93,22 +95,52 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-    all_ext_mask = torch.tensor([f.extraction_mask for f in features], dtype=torch.float)
-    all_ext_start_ids = torch.tensor([f.extraction_start_ids for f in features], dtype=torch.long)
-    all_ext_end_ids = torch.tensor([f.extraction_end_ids for f in features], dtype=torch.long)
-    all_aug_mask = torch.tensor([f.augmentation_mask for f in features], dtype=torch.float)
-    all_aug_start_ids = torch.tensor([f.augmentation_start_ids for f in features], dtype=torch.long)
-    all_aug_end_ids = torch.tensor([f.augmentation_end_ids for f in features], dtype=torch.long)
+    
+    # all_ext_mask = torch.tensor([f.extraction_mask for f in features], dtype=torch.float)
+    # all_ext_start_ids = torch.tensor([f.extraction_start_ids for f in features], dtype=torch.long)
+    # all_ext_end_ids = torch.tensor([f.extraction_end_ids for f in features], dtype=torch.long)
+    # all_aug_mask = torch.tensor([f.augmentation_mask for f in features], dtype=torch.float)
+    # all_aug_start_ids = torch.tensor([f.augmentation_start_ids for f in features], dtype=torch.long)
+    # all_aug_end_ids = torch.tensor([f.augmentation_end_ids for f in features], dtype=torch.long)
 
     if output_mode == "classification":
         all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
     elif output_mode == "regression":
         all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.float)
 
-    dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,
-                            all_ext_mask, all_ext_start_ids, all_ext_end_ids,
-                            all_aug_mask, all_aug_start_ids, all_aug_end_ids)
-    return dataset
+    dataset_dict = {
+        "input_ids": all_input_ids,
+        "attention_mask": all_input_mask,
+        "token_type_ids": all_segment_ids,
+        "label": all_label_ids
+    } 
+
+    # dataset = []
+    # for f in features:
+    #     data_dict = {
+    #         "input_ids": f.input_ids,
+    #         "attention_mask": f.input_mask,
+    #         "token_type_ids": f.segment_ids,
+    #         "label": f.label_id
+    #     }
+    #     dataset.append(data_dict)
+
+    # dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,
+    #                         all_ext_mask, all_ext_start_ids, all_ext_end_ids,
+    #                         all_aug_mask, all_aug_start_ids, all_aug_end_ids)
+    return Dataset.from_dict(dataset_dict)
+
+def nvidia_check():
+
+    nvidia_smi.nvmlInit()
+
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        logger.info("Device {}: {}, Memory : ({:.2f}% free): {}(total), {} (free), {} (used)".format(i, nvidia_smi.nvmlDeviceGetName(handle), 100*info.free/info.total, info.total, info.free, info.used))
+
+    nvidia_smi.nvmlShutdown()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -202,6 +234,7 @@ def main():
 #    logger.warning("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
 #                    args.local_rank, device, args.n_gpu, bool(args.local_rank != -1), args.fp16)
 
+    nvidia_check()
     set_seed(args)
 
     args.task_name = args.task_name.lower()
@@ -230,35 +263,88 @@ def main():
     logger.info("Training/evaluation parameters %s", args)
 
     # Training
+    nvidia_check()
 
     if args.do_train:
-        train_dataset = load_and_cache_examples(args, args.task_name, tokenizer, evaluate=False)
+        # eval_dataset = load_and_cache_examples(args, args.task_name, tokenizer, evaluate=True)
+        # train_dataset = load_and_cache_examples(args, args.task_name, tokenizer, evaluate=False)
+        
+        # train_dataset.save_to_disk("/root/autodl-tmp/data/train.hf")
+        # eval_dataset.save_to_disk("/root/autodl-tmp/data/eval.hf")
+
+        train_dataset = load_from_disk("/root/autodl-tmp/data/train.hf")
+        eval_dataset = load_from_disk("/root/autodl-tmp/data/eval.hf")
+
+        # imdb = load_dataset("imdb")
+        # print(imdb)
+        # train_dataset = imdb['train']
+        # eval_dataset = imdb['test']
+
+        # print(train_dataset)
+
+        def tokenize(batch):
+            return tokenizer(batch['text'], padding=True, truncation=True)
+
+        # train_dataset = train_dataset.map(tokenize, batched=True, batch_size=len(train_dataset))
+        # eval_dataset = eval_dataset.map(tokenize, batched=True, batch_size=len(eval_dataset))
+        train_dataset.set_format('torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'label'])
+        eval_dataset.set_format('torch', columns=['input_ids', 'attention_mask', 'token_type_ids', 'label'])
+
+        print(train_dataset)
+        print(train_dataset[0])
+
+        print(max([len(x) for x in train_dataset['input_ids']]))
+        print(min([len(x) for x in train_dataset['input_ids']]))
+
+
         #global_step, tr_loss = train(args, train_dataset, model, tokenizer)
         #logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
         training_args = TrainingArguments(
-            "basic-trainer",
+            output_dir=args.output_dir,
+            logging_dir=f'./logs/',
             per_device_train_batch_size=args.per_gpu_train_batch_size,
             per_device_eval_batch_size=args.per_gpu_eval_batch_size,
-            num_train_epochs=10,
-            evaluation_strategy="epoch",
-            remove_unused_columns=False
+            num_train_epochs=3,
+            seed=42,
+            fp16=True
         )
 
-        eval_dataset = load_and_cache_examples(args, args.task_name, tokenizer, evaluate=True)
+        # evaluation_strategy="epoch",
+        # remove_unused_columns=False,
+        # disable_tqdm=False
 
+
+        # processor = processors[args.task_name]()
+        # train_data = processor.get_train_examples(args.data_dir)
+        # eval_data = processor.get_dev_examples(args.data_dir) 
+        # label_list = processor.get_labels()
+
+
+        nvidia_check()
+
+        # def collate_fn(examples):
+        #     input_ids = torch.stack([example.input_ids for example in examples])
+        #     attention_mask = torch.stack([example.attention_mask for example in examples])
+        #     token_type_ids = torch.stack([example.token_type_ids for example in examples])
+        #     labels = torch.tensor([example.label for example in examples])
+        #     return {"input_ids":input_ids, "attention_mask":attention_mask, "token_type_ids":token_type_ids, "labels":labels}
+
+        # train_data 
         trainer = Trainer(
             model,
             training_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            tokenizer=tokenizer,
             compute_metrics=compute_metrics
-          )
-
+            # data_collator=collate_fn,
+            # tokenizer=tokenizer,
+        )
 
         trainer.train()
         trainer.save_model(args.output_dir)
         tokenizer.save_pretrained(args.output_dir)
+
+
     #     model = model_class.from_pretrained(args.output_dir)
     #     tokenizer = tokenizer_class.from_pretrained(args.output_dir)
     #     model.to(args.device)
