@@ -34,6 +34,8 @@ from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler, Tens
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 
+from torch import nn
+
 # from pytorch_transformers import (WEIGHTS_NAME, BertConfig, BertForSequenceClassification, BertTokenizer)
 # from pytorch_transformers import AdamW, WarmupLinearSchedule
 
@@ -75,9 +77,20 @@ class BertLong(BertModel):
             # replace the `modeling_bert.BertSelfAttention` object with `LongformerSelfAttention`
             layer.attention.self = BertLongSelfAttention(config, layer_id=i)
 
+class BertLongForSequenceClassification(BertForSequenceClassification):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.bert = BertLong(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
 MODEL_CLASSES = {
     'pbert': (BertConfig, BertPointer, BertTokenizer),
-    'bert': (BertConfig, BertLong, BertTokenizerFast),
+    'bert': (BertConfig, BertLongForSequenceClassification, BertTokenizerFast),
 }
 
 
@@ -492,6 +505,7 @@ def main():
     else:
         logger.info("Loading model from checkpoint.")
         model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path), config=config)
+        # model = BertForSequenceClassification.from_pretrained(model)
 
     if args.local_rank == 0:
         torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
