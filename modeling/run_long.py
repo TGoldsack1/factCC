@@ -37,7 +37,8 @@ from tqdm import tqdm, trange
 # from pytorch_transformers import (WEIGHTS_NAME, BertConfig, BertForSequenceClassification, BertTokenizer)
 # from pytorch_transformers import AdamW, WarmupLinearSchedule
 
-from transformers import BertConfig, BertForSequenceClassification, BertTokenizer, BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BertTokenizer
+from transformers import BertConfig, BertForSequenceClassification, BertTokenizer,\
+ BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BertTokenizerFast, BertModel
 
 from transformers import AdamW, get_linear_schedule_with_warmup #WarmupLinearSchedule
 
@@ -67,7 +68,7 @@ class BertLongSelfAttention(LongformerSelfAttention):
         return super().forward(hidden_states, attention_mask=attention_mask, output_attentions=output_attentions)
 
 
-class BertLong(BertForSequenceClassification):
+class BertLong(BertModel):
     def __init__(self, config):
         super().__init__(config)
         for i, layer in enumerate(self.encoder.layer):
