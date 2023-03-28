@@ -67,7 +67,7 @@ class BertLongSelfAttention(LongformerSelfAttention):
         return super().forward(hidden_states, attention_mask=attention_mask, output_attentions=output_attentions)
 
 
-class BertLong(BertModel):
+class BertLong(BertForSequenceClassification):
     def __init__(self, config):
         super().__init__(config)
         for i, layer in enumerate(self.encoder.layer):
