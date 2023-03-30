@@ -46,6 +46,7 @@ from transformers import AdamW, get_linear_schedule_with_warmup #WarmupLinearSch
 
 from transformers.modeling_longformer import LongformerSelfAttention
 
+from long_bert import BertLongForSequenceClassification
 
 logger = logging.getLogger(__name__)
 wandb.init(project="entailment-metric")
@@ -57,36 +58,35 @@ ALL_MODELS = sum((tuple(BERT_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()) for conf in (
 #     'bert': (BertConfig, BertForSequenceClassification, BertTokenizer),
 # }
 
-class BertLongSelfAttention(LongformerSelfAttention):
-    def forward(
-        self,
-        hidden_states,
-        attention_mask=None,
-        head_mask=None,
-        encoder_hidden_states=None,
-        encoder_attention_mask=None,
-        output_attentions=False,
-    ):
-        return super().forward(hidden_states, attention_mask=attention_mask, output_attentions=output_attentions)
+# class BertLongSelfAttention(LongformerSelfAttention):
+#     def forward(
+#         self,
+#         hidden_states,
+#         attention_mask=None,
+#         head_mask=None,
+#         encoder_hidden_states=None,
+#         encoder_attention_mask=None,
+#         output_attentions=False,
+#     ):
+#         return super().forward(hidden_states, attention_mask=attention_mask, output_attentions=output_attentions)
 
 
-class BertLong(BertModel):
-    def __init__(self, config):
-        super().__init__(config)
-        for i, layer in enumerate(self.encoder.layer):
-            # replace the `modeling_bert.BertSelfAttention` object with `LongformerSelfAttention`
-            layer.attention.self = BertLongSelfAttention(config, layer_id=i)
+# class BertLong(BertModel):
+#     def __init__(self, config):
+#         super().__init__(config)
+#         for i, layer in enumerate(self.encoder.layer):
+#             # replace the `modeling_bert.BertSelfAttention` object with `LongformerSelfAttention`
+#             layer.attention.self = BertLongSelfAttention(config, layer_id=i)
 
-class BertLongForSequenceClassification(BertForSequenceClassification):
-    def __init__(self, config):
-        super().__init__(config)
-        self.num_labels = config.num_labels
+# class BertLongForSequenceClassification(BertForSequenceClassification):
+#     def __init__(self, config):
+#         super().__init__(config)
+#         # self.num_labels = config.num_labels
+#         self.bert = BertLong(config)
+#         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
+#         # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.bert = BertLong(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
-
-        self.init_weights()
+#         # self.init_weights()
 
 MODEL_CLASSES = {
     'pbert': (BertConfig, BertPointer, BertTokenizer),
@@ -201,8 +201,8 @@ def train(args, train_dataset, model, tokenizer):
 
             tr_loss += loss.item()
             if (step + 1) % args.gradient_accumulation_steps == 0:
-                scheduler.step()  # Update learning rate schedule
                 optimizer.step()
+                scheduler.step()  # Update learning rate schedule
                 model.zero_grad()
                 global_step += 1
 
@@ -325,11 +325,14 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     processor = processors[task]()
     output_mode = output_modes[task]
     # Load data features from cache or dataset file
+
     cached_features_file = os.path.join(args.data_dir, 'cached_{}_{}_{}_{}'.format(
         'dev' if evaluate else 'train',
-        list(filter(None, args.model_name_or_path.split('/'))).pop(),
+        # list(filter(None, args.model_name_or_path.split('/'))).pop(),
+        "bert-base-8192",
         str(args.max_seq_length),
         str(task)))
+
     if os.path.exists(cached_features_file):
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
@@ -505,7 +508,6 @@ def main():
     else:
         logger.info("Loading model from checkpoint.")
         model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path), config=config)
-        # model = BertForSequenceClassification.from_pretrained(model)
 
     if args.local_rank == 0:
         torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
